@@ -1,15 +1,17 @@
 services:
   - type: cron
-    name: stochastic-bot
-    schedule: "*/5 * * * *"
+    name: stochastic-gilz-bot
+    schedule: "*/15 * * * *"
     runtime: python
     plan: free
     envVars:
-      - key: TELEGRAM_TOKEN
+      - key: TELEGRAM_TOKEN_GILZ
         sync: false
-      - key: TELEGRAM_CHAT_ID
+      - key: TELEGRAM_CHAT_ID_V2
         sync: false
-      - key: TWELVE_API_KEY
+      - key: TWELVE_API_KEY_3
+        sync: false
+      - key: TWELVE_API_KEY_4
         sync: false
     buildCommand: ""
     startCommand: "python main.py"
