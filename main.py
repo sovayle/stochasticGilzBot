@@ -3,11 +3,10 @@ import os
 from datetime import datetime, timedelta
 
 # CONFIGURATION
-TELEGRAM_TOKEN_GILZ = os.getenv("TELEGRAM_TOKEN_GILZ")
-TELEGRAM_CHAT_ID_V2 = os.getenv("TELEGRAM_CHAT_ID_V2")
-#TELEGRAM_CHAT_ID_2 = os.getenv("TELEGRAM_CHAT_ID_2")  # Add this
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_GILZ")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID_V2")
 
-chat_ids = [TELEGRAM_CHAT_ID_V2] #, TELEGRAM_CHAT_ID_2]  # Add both
+chat_ids = [TELEGRAM_CHAT_ID]
 
 # Two API keys for failover
 API_KEYS = [
@@ -15,12 +14,11 @@ API_KEYS = [
     os.getenv("TWELVE_API_KEY_4")
 ]
 
-SYMBOLS = ["EUR/JPY"]
-TIMEFRAMES = {
-    "15min": 30,
-    "1H": 30,
-    "4h": 30
-}
+SYMBOLS = ["EUR/JPY", "GBP/USD", "CHF/JPY", "EUR/USD"]
+TIMEFRAMES = ["15min", "1h", "4h", "1day"]
+K_PERIODS = [30, 65, 100]
+THRESHOLD_LOW = 3
+THRESHOLD_HIGH = 97
 
 def fetch_data(symbol, interval):
     url = "https://api.twelvedata.com/time_series"
@@ -29,7 +27,7 @@ def fetch_data(symbol, interval):
         params = {
             "symbol": symbol,
             "interval": interval,
-            "outputsize": 100,
+            "outputsize": 150,  # Ensure we have enough data for %K=100
             "apikey": api_key
         }
         response = requests.get(url, params=params)
@@ -73,23 +71,18 @@ def send_telegram_message(text, chat_ids):
         requests.post(url, data=payload)
 
 def main():
-    threshold = 7  # Trigger alert if %K is near 0 or 100
-
-    for tf, k_period in TIMEFRAMES.items():
-        print(f"Checking data for {tf} timeframe...")
+    for tf in TIMEFRAMES:
+        print(f"📊 Checking data for {tf} timeframe...")
 
         for symbol in SYMBOLS:
             values = fetch_data(symbol, tf)
-            if not values or len(values) < k_period:
-                print(f"No data for {symbol} at {tf} timeframe.")
+            if not values or len(values) < max(K_PERIODS):
+                print(f"❌ Insufficient data for {symbol} ({tf}).")
                 continue
-
-            print(f"Data successfully fetched for {symbol} at {tf} timeframe.")
 
             latest_candle = values[0]
             candle_time_str = latest_candle["datetime"]
 
-            # Handle datetime with or without time (e.g. daily)
             try:
                 candle_dt = datetime.strptime(candle_time_str, "%Y-%m-%d %H:%M:%S")
                 shifted_time = candle_dt - timedelta(hours=7)
@@ -99,15 +92,30 @@ def main():
                 shifted_time = candle_dt - timedelta(hours=7)
                 shifted_time_str = shifted_time.strftime("%Y-%m-%d")
 
-            k = calculate_stochastic(values, k_period)
-            if k is None:
-                continue
+            stoch_values = {}
+            for k_period in K_PERIODS:
+                k_value = calculate_stochastic(values, k_period)
+                if k_value is None:
+                    print(f"⚠️ Not enough data for %K={k_period} on {symbol} ({tf})")
+                    break
+                stoch_values[k_period] = k_value
 
-            print(f"{symbol} ({tf}) | Latest candle time: {shifted_time_str} | %K = {k}")
+            if len(stoch_values) != len(K_PERIODS):
+                continue  # Skip if any of the stoch values are missing
 
-            if k <= threshold or k >= (100 - threshold):
+            k30, k65, k100 = stoch_values[30], stoch_values[65], stoch_values[100]
+
+            print(f"{symbol} ({tf}) | Time: {shifted_time_str} | %K30={k30} | %K65={k65} | %K100={k100}")
+
+            if all(k <= THRESHOLD_LOW for k in [k30, k65, k100]):
                 send_telegram_message(
-                     f"🚨 {tf} | Time: {shifted_time_str} | Stoch 30 = {k} | Price = {float(values[0]['close']):.2f}",
+                    f"🟢 *Stoch GILA BUY Opportunity* 🚨\n{symbol} | {tf}\nTime: {shifted_time_str}\n%K30={k30}, %K65={k65}, %K100={k100}\nPrice: {float(values[0]['close']):.2f}",
+                    chat_ids
+                )
+
+            elif all(k >= THRESHOLD_HIGH for k in [k30, k65, k100]):
+                send_telegram_message(
+                    f"🔴 *Stoch GILA SELL Opportunity* 🚨\n{symbol} | {tf}\nTime: {shifted_time_str}\n%K30={k30}, %K65={k65}, %K100={k100}\nPrice: {float(values[0]['close']):.2f}",
                     chat_ids
                 )
 
