@@ -1,12 +1,12 @@
 import requests
 import os
+import time
 from datetime import datetime, timedelta
 
 # CONFIGURATION
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_GILZ")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID_V2")
-
-chat_ids = [TELEGRAM_CHAT_ID]
+TELEGRAM_TOKEN_GILZ = os.getenv("TELEGRAM_TOKEN_GILZ")
+TELEGRAM_CHAT_ID_V2 = os.getenv("TELEGRAM_CHAT_ID_V2")
+chat_ids = [TELEGRAM_CHAT_ID_V2]
 
 # Two API keys for failover
 API_KEYS = [
@@ -17,8 +17,7 @@ API_KEYS = [
 SYMBOLS = ["EUR/JPY", "GBP/USD", "CHF/JPY", "EUR/USD"]
 TIMEFRAMES = ["15min", "1h", "4h", "1day"]
 K_PERIODS = [30, 65, 100]
-THRESHOLD_LOW = 3
-THRESHOLD_HIGH = 97
+THRESHOLD = 3
 
 def fetch_data(symbol, interval):
     url = "https://api.twelvedata.com/time_series"
@@ -27,7 +26,7 @@ def fetch_data(symbol, interval):
         params = {
             "symbol": symbol,
             "interval": interval,
-            "outputsize": 150,  # Ensure we have enough data for %K=100
+            "outputsize": 70,
             "apikey": api_key
         }
         response = requests.get(url, params=params)
@@ -65,57 +64,48 @@ def calculate_stochastic(values, k_period):
     return round(k, 2)
 
 def send_telegram_message(text, chat_ids):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN_GILZ}/sendMessage"
     for chat_id in chat_ids:
         payload = {"chat_id": chat_id, "text": text}
         requests.post(url, data=payload)
 
 def main():
     for tf in TIMEFRAMES:
-        print(f"📊 Checking data for {tf} timeframe...")
-
+        print(f"\n📊 Checking data for {tf} timeframe...")
         for symbol in SYMBOLS:
             values = fetch_data(symbol, tf)
-            if not values or len(values) < max(K_PERIODS):
-                print(f"❌ Insufficient data for {symbol} ({tf}).")
+            time.sleep(2)  # 🕒 Add 2-second delay between requests
+
+            if not values:
+                print(f"❌ No data for {symbol} at {tf} timeframe.")
                 continue
 
-            latest_candle = values[0]
-            candle_time_str = latest_candle["datetime"]
-
             try:
-                candle_dt = datetime.strptime(candle_time_str, "%Y-%m-%d %H:%M:%S")
+                candle_dt = datetime.strptime(values[0]["datetime"], "%Y-%m-%d %H:%M:%S")
                 shifted_time = candle_dt - timedelta(hours=7)
-                shifted_time_str = shifted_time.strftime("%Y-%m-%d %H:%M:%S")
+                time_str = shifted_time.strftime("%Y-%m-%d %H:%M:%S")
             except ValueError:
-                candle_dt = datetime.strptime(candle_time_str, "%Y-%m-%d")
+                candle_dt = datetime.strptime(values[0]["datetime"], "%Y-%m-%d")
                 shifted_time = candle_dt - timedelta(hours=7)
-                shifted_time_str = shifted_time.strftime("%Y-%m-%d")
+                time_str = shifted_time.strftime("%Y-%m-%d")
 
-            stoch_values = {}
-            for k_period in K_PERIODS:
-                k_value = calculate_stochastic(values, k_period)
-                if k_value is None:
-                    print(f"⚠️ Not enough data for %K={k_period} on {symbol} ({tf})")
-                    break
-                stoch_values[k_period] = k_value
+            k_values = []
+            for period in K_PERIODS:
+                k = calculate_stochastic(values, period)
+                k_values.append(k)
 
-            if len(stoch_values) != len(K_PERIODS):
-                continue  # Skip if any of the stoch values are missing
+            if None in k_values:
+                continue
 
-            k30, k65, k100 = stoch_values[30], stoch_values[65], stoch_values[100]
+            print(f"{symbol} ({tf}) | Time: {time_str} | %K30={k_values[0]} | %K65={k_values[1]} | %K100={k_values[2]}")
 
-            print(f"{symbol} ({tf}) | Time: {shifted_time_str} | %K30={k30} | %K65={k65} | %K100={k100}")
-
-            if all(k <= THRESHOLD_LOW for k in [k30, k65, k100]):
+            if all(k <= THRESHOLD or k >= (100 - THRESHOLD) for k in k_values):
+                signal = "🟢 BUY" if all(k <= THRESHOLD for k in k_values) else "🔴 SELL"
                 send_telegram_message(
-                    f"🟢 *Stoch GILA BUY Opportunity* 🚨\n{symbol} | {tf}\nTime: {shifted_time_str}\n%K30={k30}, %K65={k65}, %K100={k100}\nPrice: {float(values[0]['close']):.2f}",
-                    chat_ids
-                )
-
-            elif all(k >= THRESHOLD_HIGH for k in [k30, k65, k100]):
-                send_telegram_message(
-                    f"🔴 *Stoch GILA SELL Opportunity* 🚨\n{symbol} | {tf}\nTime: {shifted_time_str}\n%K30={k30}, %K65={k65}, %K100={k100}\nPrice: {float(values[0]['close']):.2f}",
+                    f"🔥 Stoch GILA Opportunity!\n"
+                    f"{symbol} ({tf}) | Time: {time_str}\n"
+                    f"%K30={k_values[0]}, %K65={k_values[1]}, %K100={k_values[2]}\n"
+                    f"Signal: {signal}",
                     chat_ids
                 )
 
