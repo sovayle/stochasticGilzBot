@@ -74,7 +74,7 @@ def main():
         print(f"\n📊 Checking data for {tf} timeframe...")
         for symbol in SYMBOLS:
             values = fetch_data(symbol, tf)
-            time.sleep(2)  # 🕒 Add 2-second delay between requests
+            time.sleep(3)  # 🕒 3-second delay between requests
 
             if not values:
                 print(f"❌ No data for {symbol} at {tf} timeframe.")
@@ -99,15 +99,21 @@ def main():
 
             print(f"{symbol} ({tf}) | Time: {time_str} | %K30={k_values[0]} | %K65={k_values[1]} | %K100={k_values[2]}")
 
-            if all(k <= THRESHOLD or k >= (100 - THRESHOLD) for k in k_values):
-                signal = "🟢 BUY" if all(k <= THRESHOLD for k in k_values) else "🔴 SELL"
-                send_telegram_message(
-                    f"🔥 Stoch GILA Opportunity!\n"
-                    f"{symbol} ({tf}) | Time: {time_str}\n"
-                    f"%K30={k_values[0]}, %K65={k_values[1]}, %K100={k_values[2]}\n"
-                    f"Signal: {signal}",
-                    chat_ids
-                )
+            # Check for Stoch GILA Opportunity
+            if all(k <= THRESHOLD for k in k_values):
+                signal = "🟢 BUY"
+            elif all(k >= 100 - THRESHOLD for k in k_values):
+                signal = "🔴 SELL"
+            else:
+                continue
+
+            send_telegram_message(
+                f"🔥 Stoch GILA Opportunity!\n"
+                f"{symbol} ({tf}) | Time: {time_str}\n"
+                f"%K30={k_values[0]}, %K65={k_values[1]}, %K100={k_values[2]}\n"
+                f"Signal: {signal}",
+                chat_ids
+            )
 
 if __name__ == "__main__":
     main()
