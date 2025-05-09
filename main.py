@@ -16,7 +16,7 @@ API_KEY_MAP = {
 SYMBOLS = ["EUR/JPY", "GBP/USD"]
 TIMEFRAMES = ["15min", "1h", "4h", "1day"]
 K_PERIODS = [30, 65, 100]
-THRESHOLD_LOW = 3
+THRESHOLD_LOW = 8
 THRESHOLD_HIGH = 100 - THRESHOLD_LOW
 
 def fetch_data(symbol, interval):
