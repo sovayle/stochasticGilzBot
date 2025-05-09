@@ -26,19 +26,19 @@ def fetch_data(symbol, interval):
     params = {
         "symbol": symbol,
         "interval": interval,
-        "outputsize": 70,
+        "outputsize": 100,
         "apikey": api_key
     }
     response = requests.get(url, params=params)
     if response.status_code != 200:
-        print(f"❌ HTTP {response.status_code} for {symbol}: {response.text}")
+        print(f"❌ HTTP {response.status_code} for {symbol} at {interval}: {response.text}")
         return []
 
     data = response.json()
     if "values" in data:
         return data["values"]
     if data.get("code") == 429:
-        print(f"⚠️ Rate limit hit for {symbol}. Key: {api_key}")
+        print(f"⚠️ Rate limit hit for {symbol} (key={api_key})")
     else:
         print(f"❌ Unexpected error for {symbol}: {data}")
     return []
@@ -70,10 +70,14 @@ def main():
         print(f"\n📊 Checking data for {tf} timeframe...")
         for symbol in SYMBOLS:
             values = fetch_data(symbol, tf)
-            if not values:
+            # Immediate logging of fetch result
+            if values:
+                print(f"✅ Fetched {len(values)} candles for {symbol} at {tf}")
+            else:
                 print(f"❌ No data for {symbol} at {tf}")
                 continue
 
+            # Parse candle time
             t0 = values[0]["datetime"]
             try:
                 candle_dt = datetime.strptime(t0, "%Y-%m-%d %H:%M:%S")
@@ -82,12 +86,16 @@ def main():
             shifted = candle_dt - timedelta(hours=7)
             time_str = shifted.strftime("%Y-%m-%d %H:%M:%S")
 
+            # Calculate all three stochastic values
             k_values = [calculate_stochastic(values, p) for p in K_PERIODS]
             if None in k_values:
+                print(f"⚠️ Not enough data to calculate all %Ks for {symbol} at {tf}")
                 continue
 
+            # Log the calculated %K values
             print(f"{symbol} ({tf}) | {time_str} | %K30={k_values[0]} | %K65={k_values[1]} | %K100={k_values[2]}")
 
+            # Send alert only if all below THRESHOLD_LOW or all above THRESHOLD_HIGH
             if all(k <= THRESHOLD_LOW for k in k_values):
                 signal = "🟢 BUY"
             elif all(k >= THRESHOLD_HIGH for k in k_values):
