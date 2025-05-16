@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 # CONFIGURATION
 TELEGRAM_TOKEN_GILZ = os.getenv("TELEGRAM_TOKEN_GILZ")
 TELEGRAM_CHAT_ID_V2 = os.getenv("TELEGRAM_CHAT_ID_V2")
-chat_ids = [TELEGRAM_CHAT_ID_V2]
+TELEGRAM_CHAT_ID_V2_DAD = os.getenv("TELEGRAM_CHAT_ID_V2_DAD")
+chat_ids = [TELEGRAM_CHAT_ID_V2, TELEGRAM_CHAT_ID_V2_DAD]
 
 # API keys assigned per symbol
 API_KEY_MAP = {
@@ -103,11 +104,21 @@ def main():
             else:
                 continue
 
+            # Determine flag based on symbol
+            flag = "🇯🇵" if symbol == "EUR/JPY" else "🇬🇧"
+            
+            # Get latest price and format accordingly
+            raw_price = float(values[0]['close'])
+            price_str = f"{raw_price:.2f}" if symbol == "EUR/JPY" else f"{raw_price:.4f}"
+            
+            # Logging to terminal
+            print(f"📨 Sending alert to {len(chat_ids)} chat(s) for {symbol} at {tf} | {signal} | Price: {price_str}")
+            
             send_telegram_message(
-                f"🔥 Stoch GILA Opportunity!\n"
+                f"{flag} Stoch GILA Opportunity!\n"
                 f"{symbol} ({tf}) | Time: {time_str}\n"
                 f"%K30={k_values[0]}, %K65={k_values[1]}, %K100={k_values[2]}\n"
-                f"Signal: {signal}",
+                f"Signal: {signal} - Price: {price_str}",
                 chat_ids
             )
 
