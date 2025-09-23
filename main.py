@@ -17,7 +17,7 @@ API_KEY_MAP = {
 SYMBOLS = ["EUR/JPY", "XAU/USD"]
 TIMEFRAMES = ["15min", "1h", "4h", "1day"]
 K_PERIODS = [30, 65, 100]
-THRESHOLD_LOW = 3
+THRESHOLD_LOW = 10
 THRESHOLD_HIGH = 100 - THRESHOLD_LOW
 
 def fetch_data(symbol, interval):
@@ -99,8 +99,8 @@ def main():
             # Send alert only if all below THRESHOLD_LOW or all above THRESHOLD_HIGH
             if all(k <= THRESHOLD_LOW for k in k_values):
                 signal = "🟢 BUY"
-            elif all(k >= THRESHOLD_HIGH for k in k_values):
-                signal = "🔴 SELL"
+            #elif all(k >= THRESHOLD_HIGH for k in k_values):
+            #    signal = "🔴 SELL"
             else:
                 continue
 
