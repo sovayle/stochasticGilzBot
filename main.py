@@ -10,11 +10,12 @@ chat_ids = [TELEGRAM_CHAT_ID_V2, TELEGRAM_CHAT_ID_V2_DAD]
 
 # API keys assigned per symbol
 API_KEY_MAP = {
-    "EUR/JPY": os.getenv("TWELVE_API_KEY_3"),
+    #"EUR/JPY": os.getenv("TWELVE_API_KEY_3"),
     "XAU/USD": os.getenv("TWELVE_API_KEY_4")
 }
 
-SYMBOLS = ["EUR/JPY", "XAU/USD"]
+#SYMBOLS = ["EUR/JPY", "XAU/USD"]
+SYMBOLS = ["XAU/USD"]
 TIMEFRAMES = ["15min", "1h", "4h", "1day"]
 K_PERIODS = [30, 65, 100]
 THRESHOLD_LOW = 10
